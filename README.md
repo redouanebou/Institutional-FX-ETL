@@ -31,87 +31,72 @@ While preparing a 15-year dataset for a Deep Learning model (GBPUSD), I performe
 
 ---
 
-## 🛠️ The Solution: Hybrid ETL Pipeline
+## 📊 Forensic Data Audit: GBPUSD (2010–2025)
 
-I engineered `HybridDataMerger`, a custom ETL engine that prioritizes high-resolution **Tick Data** and fuses it with legacy history to create a statistically immutable time grid.
+The ETL engine processes massive tick datasets using **Chunking (50M rows/batch)** and **Vectorized Pandas Operations** to ensure RAM efficiency. Below is the final data integrity report.
 
-### 🔄 Pipeline Architecture
+| Metric | Result | Status |
+| :--- | :--- | :--- |
+| **Total Rows Generated** | `8,213,517` | ✅ Verified |
+| **Gaps Bridged** | `2,383,999` *(29.03%)* | 🛡️ Fixed |
+| **Volatility Anomalies** | `243` outliers dropped | 🧹 Cleaned |
+| **Spread Recovery** | **100%** | 💎 High Precision |
 
-```mermaid
-graph LR
-    A[Legacy M1 Data] -->|Load & Audit| C(Hybrid Merger Engine)
-    B[High-Res Tick Data] -->|Resample & Spread Calc| C
-    C -->|Priority Overwrite| D{Gap Detection}
-    D -->|Found Gap| E[Bridge with Flat Candle]
-    D -->|Continuous| F[Validate Integrity]
-    E --> F
-    F -->|Output| G[clean_dataset.csv]
+> **Note:** The "Gaps Bridged" metric reveals that nearly **30%** of standard M1 history is missing. This pipeline reconstructs that lost timeline using "Flat Candle" injection (`is_flat=1`) to maintain time-series continuity for Neural Networks.
+
+---
+
+### ⚡ Key Engineering Capabilities
+
+#### 1. Tick-Derived Volume Reconstruction
+* **Challenge:** Raw tick data often reports `Volume=0` in aggregated feeds.
+* **Logic:** The pipeline ignores metadata and calculates **True Tick Volume** by counting actual `Ask` updates per minute.
+* **Result:** Transforms "dead" columns into high-signal volatility features.
+
+#### 2. Hybrid Fusion Strategy
+* **Priority:** Uses high-resolution **Tick Data** (Precision + Spread) for the modern era.
+* **Fallback:** Uses Legacy M1 only for deep history where ticks are unavailable.
+* **Outcome:** A seamless 15-year dataset with institutional-grade precision.
+
+#### 3. Immutable Time Grid
+* **Enforcement:** Ensures a continuous time-series (crucial for LSTMs/Transformers).
+* **Gap Handling:** Identifies ~2.3M gaps and injects "Flat Candles".
+* **Benefit:** The model explicitly learns the difference between "Market Inactivity" and "Missing Data".
+
+---
+
+## 📂 Project Structure
+
+```bash
+Institutional-FX-ETL/
+├── src/
+│   ├── __init__.py
+│   └── hybrid_merger.py    # Core ETL Logic (Vectorized)
+├── data/
+│   └── ...                 # Raw & Processed Data (GitIgnored)
+├── requirements.txt        # Dependencies
+└── README.md               # Documentation
 ```
-
-⚡ Key Capabilities1. 
-
-1. Tick-Derived Volume Reconstruction
-
-Challenge: Raw ticks often report Volume=0.
-
-Logic: The pipeline ignores metadata and counts actual Ask updates per minute.
-
-Result: Transforms "dead" columns into high-signal volatility features.
-
-2. Hybrid Fusion Strategy
-
-Prioritizes Tick Data (Precision + Spread) for the modern era.
-
-Falls back to Legacy M1 only for deep history.
-
-Result: A seamless 15-year dataset with institutional-grade precision.
-
-3. Immutable Time Grid
-   
-Enforces a continuous time-series (crucial for LSTMs/Transformers).
-
-Identifies ~2.3M gaps and injects "Flat Candles" (is_flat=1).
-
-Benefit: The model explicitly learns "Market Inactivity" vs "Missing Data".
-
-📂 Project Structure
-
-Job-Application-Automator/
-├── extension/                  # Chrome Extension Source
-│   ├── manifest.json           # Manifest V3 Config
-│   ├── background.js           # Tab & State Management
-│   ├── content.js              # DOM Scraping Logic
-│   └── popup.html              # UI Control
-├── google_scripts/             # Cloud Automation
-│   ├── DraftCreator.js         # Template Engine
-│   └── AntiSpamSender.js       # Throttling Logic
-└── README.md
-
-
-📊 Performance Audit (GBPUSD 2010-2025)
-
-The engine utilizes Chunking (50M rows) and vectorized operations to handle massive datasets efficiently.
-
-Metric,Result,Status
-
-Total Rows Generated,"8,213,517",✅ Verified
-
-Gaps Bridged,"2,383,999 (29.03%)",🛡️ Fixed
-
-Volatility Anomalies,243 dropped,🧹 Cleaned
-
-Spread Recovery,100%,💎 High Precision
 
 💻 Usage
 
 from src.hybrid_merger import HybridDataMerger
+
 merger = HybridDataMerger(
-    m1_path="data/raw/GBPUSD.csv",         
-    tick_path="data/raw/GBPUSD_Ticks.csv", 
+
+    m1_path="data/raw/GBPUSD.csv",         # Legacy History
+    
+    tick_path="data/raw/GBPUSD_Ticks.csv", # High-Res Ticks
+    
     output_path="data/processed/GBPUSD_Hybrid.csv",
+
+  
     chunk_size=50_000_000
+    
 )
+
 merger.run()
+
 
 <div align="center">
 Developed for Institutional Quantitative Research.Code is provided as-is for educational purposes.

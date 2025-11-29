@@ -1,29 +1,34 @@
-# 🧬 Institutional FX Data Pipeline
+<div align="center">
 
+# 🧬 Institutional FX Data Pipeline
 ### Hybrid Tick/OHLC Fusion Engine
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge\&logo=python\&logoColor=white)
-![Pandas](https://img.shields.io/badge/Pandas-Vectorized-150458?style=for-the-badge\&logo=pandas\&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-Vectorized-150458?style=for-the-badge&logo=pandas&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-Production%20Grade-success?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-*An industrial-grade ETL solution to eliminate Look-Ahead Bias and reconstruct incomplete Forex history.*
+<p align="center">
+  <em>An industrial-grade ETL solution to eliminate Look-Ahead Bias and reconstruct incomplete Forex history.</em>
+</p>
+
+</div>
 
 ---
 
 ## 📉 The Problem: "Dirty Data" in Financial Markets
 
-In algorithmic trading, **Data Quality > Model Complexity**.
+In algorithmic trading, **Data Quality > Model Complexity**. 
 
-While preparing a 15-year dataset for a Deep Learning model (GBPUSD), I performed a forensic audit on standard M1 OHLC history provided by brokers. The findings were catastrophic:
+While preparing a 15-year dataset for a Deep Learning model (GBPUSD), I performed a forensic audit on standard M1 OHLC history provided by brokers. The findings were **catastrophic**:
 
-| Metric           | Findings                 | Impact                          |
-| :--------------- | :----------------------- | :------------------------------ |
+| Metric | Findings | Impact |
+| :--- | :--- | :--- |
 | **Missing Data** | `2,383,999` minutes gaps | Model fails to learn time-decay |
-| **Data Loss**    | 29.03% of timeline       | Blind spots in backtesting      |
-| **No Spread**    | Missing Bid/Ask spread   | Unrealistic PnL simulations     |
+| **Data Loss** | **29.03%** of timeline | Blind spots in backtesting |
+| **No Spread** | Missing Bid/Ask spread | Unrealistic PnL simulations |
 
-> ⚠️ Critical Risk: Training on this data guarantees **Regime Hallucination** and **Look-Ahead Bias**.
+> ⚠️ **Critical Risk:** Training on this data guarantees **Regime Hallucination** and **Look-Ahead Bias**.
 
 ---
 

@@ -104,11 +104,11 @@ The ETL engine processes massive tick datasets using **Chunking (50M rows/batch)
 Institutional-FX-ETL/
 ├── src/
 │   ├── __init__.py
-│   └── hybrid_merger.py    # Core ETL Logic (Vectorized)
+│   └── hybrid_merger.py   
 ├── data/
-│   └── ...                 # Raw & Processed Data (GitIgnored)
-├── requirements.txt        # Dependencies
-└── README.md               # Documentation
+│   └── ...                
+├── requirements.txt        
+└── README.md               
 ```
 
 💻 Usage

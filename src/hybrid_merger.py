@@ -16,6 +16,7 @@ class HybridDataMerger:
         self.audit_log = []
 
     def log_events(self, df_subset, reason):
+        """Logs anomaly events for forensic audit."""
         if df_subset.empty: return
         logs = df_subset.copy()
         logs['reason'] = reason
@@ -27,6 +28,7 @@ class HybridDataMerger:
         self.audit_log.append(logs[cols])
 
     def save_audit_log(self):
+        """Exports the audit log to CSV."""
         if not self.audit_log: return
         full_log = pd.concat(self.audit_log, ignore_index=True)
         if 'datetime' in full_log.columns: full_log['datetime'] = pd.to_datetime(full_log['datetime'])
@@ -34,6 +36,7 @@ class HybridDataMerger:
         print(f"📝 Audit Log Saved: {self.audit_path}")
 
     def load_m1_history(self):
+        """Loads legacy M1 data to serve as the skeletal framework."""
         print(f"📖 Loading Base M1 History: {self.m1_path}")
         try:
             df = pd.read_csv(
@@ -54,6 +57,7 @@ class HybridDataMerger:
             return pd.DataFrame()
 
     def process_ticks_chunked(self):
+        """Processes high-res ticks in chunks to prevent RAM overflow."""
         print(f"💎 Processing High-Res Ticks (Chunked): {self.tick_path}")
         if not os.path.exists(self.tick_path):
             print("❌ Tick file not found!")
@@ -88,12 +92,12 @@ class HybridDataMerger:
                 
                 chunk = chunk[~mask_weekend]
 
-                if chunk.empty:
-                    continue
+                if chunk.empty: continue
 
                 chunk['mid'] = (chunk['ask'] + chunk['bid']) / 2
                 chunk['spread'] = chunk['ask'] - chunk['bid']
 
+                # Resample to M1 OHLC
                 resampler = chunk.resample('1min', label='left', closed='left')
                 mid_ohlc = resampler['mid'].ohlc() 
                 spread_mean = resampler['spread'].mean()
@@ -140,6 +144,7 @@ class HybridDataMerger:
             return pd.DataFrame()
 
     def validate_and_clean(self, df):
+        """Runs integrity checks: Inverted candles, Structural errors, Volatility spikes."""
         print("🔍 Running Deep Validation & Cleaning...")
         
         inv_mask = df['low'] > df['high']
@@ -169,30 +174,30 @@ class HybridDataMerger:
         return df
 
     def run(self):
+        """Executes the pipeline with Consensus Protocol."""
         df_m1 = self.load_m1_history()
         df_ticks = self.process_ticks_chunked()
 
         if df_ticks.empty:
-            print("🛑 FATAL: No valid tick data found.")
+            print("🛑 FATAL: No valid tick data found. Aborting.")
             sys.exit(1)
 
         print("🛡️ Running Consensus Check (M1 vs Ticks)...")
-        common = df_ticks.index.intersection(df_m1.index)
-        if not common.empty:
-            t_close = df_ticks.loc[common, 'close']
-            m_close = df_m1.loc[common, 'close']
+        
+        m1_aligned = df_m1.reindex(df_ticks.index)
+        
+        diff = (df_ticks['close'] - m1_aligned['close']).abs()
+        
+        catastrophes = diff[diff > 0.01]
+        
+        if not catastrophes.empty:
+            print(f"   🚩 Detected {len(catastrophes)} catastrophic mismatches (> 100 pips).")
+            print("   👉 REJECTING Tick Data for these minutes. Trusting M1 Consensus.")
+            self.log_events(df_ticks.loc[catastrophes.index], "rejected_tick_catastrophe")
             
-            diff = (t_close - m_close).abs()
-            catastrophes = diff[diff > 0.01]
-            
-            if not catastrophes.empty:
-                print(f"   🚩 Detected {len(catastrophes)} catastrophic mismatches (> 100 pips).")
-                print("   👉 REJECTING Tick Data for these minutes. Trusting M1 Consensus.")
-                self.log_events(df_ticks.loc[catastrophes.index], "rejected_tick_catastrophe")
-                
-                df_ticks = df_ticks.drop(catastrophes.index)
-            else:
-                print("   ✅ Consensus Check Passed.")
+            df_ticks = df_ticks.drop(catastrophes.index)
+        else:
+            print("   ✅ Consensus Check Passed. No catastrophic errors found.")
 
         print("🔗 Merging Datasets...")
         df_final = df_ticks.combine_first(df_m1)
@@ -220,7 +225,7 @@ class HybridDataMerger:
         df_final['is_flat'] = df_final['is_flat'].astype('int8')
         
         if gaps > 0:
-            print(f"   ⚠️ Bridging {gaps} gaps.")
+            print(f"   ⚠️ Bridging {gaps} gaps with Flat Candles.")
             gap_rows = df_final[mask_nan].copy()
             self.log_events(gap_rows, "gap_bridged_flat")
             
@@ -228,6 +233,7 @@ class HybridDataMerger:
             df_final.loc[mask_nan, 'open'] = df_final.loc[mask_nan, 'close']
             df_final.loc[mask_nan, 'high'] = df_final.loc[mask_nan, 'close']
             df_final.loc[mask_nan, 'low']  = df_final.loc[mask_nan, 'close']
+            
             df_final.loc[mask_nan, 'volume'] = 0 
             df_final.loc[mask_nan, 'is_flat'] = 1
             
@@ -240,15 +246,15 @@ class HybridDataMerger:
         for c in cols: df_final[c] = df_final[c].astype('float32')
         df_final['is_flat'] = df_final['is_flat'].astype('int8')
 
-        print(f"💾 Saving Gold Standard Dataset: {self.output_path}")
+        print(f"💾 Saving Institutional Dataset: {self.output_path}")
         df_final.to_csv(self.output_path)
         self.save_audit_log()
-        print(f"✅@redouane_boundra / DONE. Total Rows: {len(df_final)}")
+        print(f"✅@redouane_boundra /  DONE. Total Rows: {len(df_final)}")
 
 if __name__ == "__main__":
     M1_FILE = r"D:\duka\GBPUSD.csv"
     TICK_FILE = r"D:\duka\GBPUSD1.csv"
-    OUTPUT_FILE = r"D:\duka\GBPUSD_GOLD_CLEAN.csv"
+    OUTPUT_FILE = r"D:\duka\GBPUSD_PLATINUM_CLEAN.csv"
     
     merger = HybridDataMerger(M1_FILE, TICK_FILE, OUTPUT_FILE, smooth_spread=True)
     merger.run()

@@ -50,7 +50,7 @@ graph LR
 
 ⚡ Key Capabilities1. 
 
-1.Tick-Derived Volume Reconstruction
+1. Tick-Derived Volume Reconstruction
 
 Challenge: Raw ticks often report Volume=0.
 
@@ -66,7 +66,7 @@ Falls back to Legacy M1 only for deep history.
 
 Result: A seamless 15-year dataset with institutional-grade precision.
 
-4. Immutable Time Grid
+3. Immutable Time Grid
    
 Enforces a continuous time-series (crucial for LSTMs/Transformers).
 

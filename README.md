@@ -31,6 +31,39 @@ While preparing a 15-year dataset for a Deep Learning model (GBPUSD), I performe
 
 ---
 
+## 🛠️ The Solution: Hybrid ETL Pipeline
+
+I engineered `HybridDataMerger`, a custom ETL engine that prioritizes high-resolution **Tick Data** and fuses it with legacy history to create a statistically immutable time grid.
+
+### 🔄 Pipeline Architecture
+
+```mermaid
+graph LR
+    A[Legacy M1 Data] -->|Load & Audit| C(Hybrid Merger Engine)
+    B[High-Res Tick Data] -->|Resample & Spread Calc| C
+    C -->|Priority Overwrite| D{Gap Detection}
+    D -->|Found Gap| E[Bridge with Flat Candle]
+    D -->|Continuous| F[Validate Integrity]
+    E --> F
+    F -->|Output| G[clean_dataset.csv]
+```
+
+## 📉 The Problem: "Dirty Data" in Financial Markets
+
+In algorithmic trading, **Data Quality > Model Complexity**. 
+
+While preparing a 15-year dataset for a Deep Learning model (GBPUSD), I performed a forensic audit on standard M1 OHLC history provided by brokers. The findings were **catastrophic**:
+
+| Metric | Findings | Impact |
+| :--- | :--- | :--- |
+| **Missing Data** | `2,383,999` minutes gaps | Model fails to learn time-decay |
+| **Data Loss** | **29.03%** of timeline | Blind spots in backtesting |
+| **No Spread** | Missing Bid/Ask spread | Unrealistic PnL simulations |
+
+> ⚠️ **Critical Risk:** Training on this data guarantees **Regime Hallucination** and **Look-Ahead Bias**.
+
+---
+
 ## 📊 Forensic Data Audit: GBPUSD (2010–2025)
 
 The ETL engine processes massive tick datasets using **Chunking (50M rows/batch)** and **Vectorized Pandas Operations** to ensure RAM efficiency. Below is the final data integrity report.
@@ -81,20 +114,12 @@ Institutional-FX-ETL/
 💻 Usage
 
 from src.hybrid_merger import HybridDataMerger
-
 merger = HybridDataMerger(
-
     m1_path="data/raw/GBPUSD.csv",         # Legacy History
-    
     tick_path="data/raw/GBPUSD_Ticks.csv", # High-Res Ticks
-    
     output_path="data/processed/GBPUSD_Hybrid.csv",
-
-  
-    chunk_size=50_000_000
-    
+    chunk_size=50_000_000 
 )
-
 merger.run()
 
 

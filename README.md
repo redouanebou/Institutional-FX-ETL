@@ -46,3 +46,26 @@ graph LR
     D -->|Continuous| F[Validate Integrity]
     E --> F
     F -->|Output| G[clean_dataset.csv]
+```
+
+⚡ Key Capabilities1. Tick-Derived Volume ReconstructionChallenge: Raw ticks often report Volume=0.Logic: The pipeline ignores metadata and counts actual Ask updates per minute.Result: Transforms "dead" columns into high-signal volatility features.2. Hybrid Fusion StrategyPrioritizes Tick Data (Precision + Spread) for the modern era.Falls back to Legacy M1 only for deep history.Result: A seamless 15-year dataset with institutional-grade precision.3. Immutable Time GridEnforces a continuous time-series (crucial for LSTMs/Transformers).Identifies ~2.3M gaps and injects "Flat Candles" (is_flat=1).Benefit: The model explicitly learns "Market Inactivity" vs "Missing Data".📂 Project StructureBashInstitutional-FX-ETL/
+├── src/
+│   ├── __init__.py
+│   └── hybrid_merger.py    # Core ETL Logic (Vectorized)
+├── data/
+│   └── ...                 # Raw & Processed Data (GitIgnored)
+├── requirements.txt        # Dependencies
+└── README.md               # Documentation
+📊 Performance Audit (GBPUSD 2010-2025)The engine utilizes Chunking (50M rows) and vectorized operations to handle massive datasets efficiently.MetricResultStatusTotal Rows Generated8,213,517✅ VerifiedGaps Bridged2,383,999 (29.03%)🛡️ FixedVolatility Anomalies243 dropped🧹 CleanedSpread Recovery100%💎 High Precision💻 UsagePythonfrom src.hybrid_merger import HybridDataMerger
+
+# Initialize the pipeline
+merger = HybridDataMerger(
+    m1_path="data/raw/GBPUSD.csv",         # Legacy History
+    tick_path="data/raw/GBPUSD_Ticks.csv", # High-Res Ticks
+    output_path="data/processed/GBPUSD_Hybrid.csv",
+    chunk_size=50_000_000
+)
+
+# Run the ETL Process
+merger.run()
+<div align="center">Developed for Institutional Quantitative Research.Code is provided as-is for educational purposes.</div>

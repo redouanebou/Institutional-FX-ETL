@@ -113,6 +113,7 @@ Institutional-FX-ETL/
 
 💻 Usage
 
+```
 from src.hybrid_merger import HybridDataMerger
 merger = HybridDataMerger(
     m1_path="data/raw/GBPUSD.csv",         # Legacy History
@@ -121,7 +122,7 @@ merger = HybridDataMerger(
     chunk_size=50_000_000 
 )
 merger.run()
-
+```
 
 <div align="center">
 Developed for Institutional Quantitative Research.Code is provided as-is for educational purposes.

@@ -5,7 +5,7 @@ import gc
 import sys
 
 class HybridDataMerger:
-    def __init__(self, m1_path, tick_path, output_path, spike_threshold=0.005, chunk_size=50_000_000, smooth_spread=True, normalize_volume=False):
+    def __init__(self, m1_path, tick_path, output_path, spike_threshold=0.005, chunk_size=50_000_000, smooth_spread=True):
         self.m1_path = m1_path
         self.tick_path = tick_path
         self.output_path = output_path
@@ -13,7 +13,6 @@ class HybridDataMerger:
         self.spike_threshold = spike_threshold
         self.chunk_size = chunk_size 
         self.smooth_spread = smooth_spread
-        self.normalize_volume = normalize_volume
         self.audit_log = []
 
     def log_events(self, df_subset, reason):
@@ -73,6 +72,7 @@ class HybridDataMerger:
 
         resampled_chunks = []
         total_rows_processed = 0
+        required_cols = ['open', 'high', 'low', 'close', 'volume', 'spread']
 
         try:
             for i, chunk in enumerate(chunk_iter):
@@ -84,10 +84,9 @@ class HybridDataMerger:
                 chunk['spread'] = chunk['ask'] - chunk['bid']
 
                 resampler = chunk.resample('1min', label='left', closed='left')
-                
                 mid_ohlc = resampler['mid'].ohlc() 
-                spread_mean = resampler['spread'].mean() 
-                tick_vol = resampler['ask'].count() 
+                spread_mean = resampler['spread'].mean()
+                tick_vol = resampler['ask'].count()
                 
                 chunk_agg = pd.DataFrame({
                     'open': mid_ohlc['open'],
@@ -97,6 +96,15 @@ class HybridDataMerger:
                     'volume': tick_vol,
                     'spread': spread_mean
                 })
+                
+                if chunk_agg.empty:
+                    continue
+                if not all(c in chunk_agg.columns for c in required_cols):
+                    print(f"⚠️ Skipping malformed chunk {i+1} (missing columns)")
+                    continue
+                if chunk_agg['close'].notna().sum() == 0:
+                    print(f"⚠️ Skipping empty chunk {i+1}")
+                    continue
 
                 resampled_chunks.append(chunk_agg)
                 count = len(chunk)
@@ -122,7 +130,7 @@ class HybridDataMerger:
                 'spread': 'mean'
             })
 
-            final_ohlc.dropna(subset=['close'], inplace=True)
+            final_ohlc = final_ohlc.dropna(subset=['close'])
             
             print(f"   🔹 Generated {len(final_ohlc)} Superior Candles from {total_rows_processed} Ticks")
             return final_ohlc
@@ -147,6 +155,9 @@ class HybridDataMerger:
              self.log_events(df[bad_oc], "fixed_structure_integrity")
              df.loc[bad_oc, 'high'] = df.loc[bad_oc, ['open', 'close', 'high']].max(axis=1)
              df.loc[bad_oc, 'low'] = df.loc[bad_oc, ['open', 'close', 'low']].min(axis=1)
+             
+             df.loc[bad_oc, 'spread'] = np.nan
+             df['spread'] = df['spread'].ffill()
 
         amp = (df['high'] - df['low']) / df['open']
         spike_mask = amp > self.spike_threshold
@@ -201,33 +212,35 @@ class HybridDataMerger:
             self.log_events(gap_rows, "gap_bridged_flat")
             
             df_final['close'] = df_final['close'].ffill()
+            
             df_final.loc[mask_nan, 'open'] = df_final.loc[mask_nan, 'close']
             df_final.loc[mask_nan, 'high'] = df_final.loc[mask_nan, 'close']
             df_final.loc[mask_nan, 'low']  = df_final.loc[mask_nan, 'close']
             df_final.loc[mask_nan, 'volume'] = 0 
             df_final.loc[mask_nan, 'is_flat'] = 1
-            df_final['spread'] = df_final['spread'].ffill()
+            
+            df_final.loc[mask_nan, 'spread'] = df_final['spread'].ffill()
 
-        df_final.dropna(subset=['close'], inplace=True)
+        df_final = df_final.dropna(subset=['close'])
 
-        if self.normalize_volume:
-            print("   ⚖️ Normalizing Volume...")
-            v_min, v_max = df_final['volume'].min(), df_final['volume'].max()
-            if v_max > v_min:
-                df_final['volume'] = (df_final['volume'] - v_min) / (v_max - v_min)
-
-        cols = ['open', 'high', 'low', 'close', 'volume', 'spread', 'is_flat']
-        df_final = df_final[cols].astype('float32')
+        print("   🔒 Final Type Casting...")
+        df_final['open'] = df_final['open'].astype('float32')
+        df_final['high'] = df_final['high'].astype('float32')
+        df_final['low'] = df_final['low'].astype('float32')
+        df_final['close'] = df_final['close'].astype('float32')
+        df_final['spread'] = df_final['spread'].astype('float32')
+        df_final['volume'] = df_final['volume'].astype('float32') 
         df_final['is_flat'] = df_final['is_flat'].astype('int8')
 
         print(f"💾 Saving Hybrid Dataset: {self.output_path}")
         df_final.to_csv(self.output_path)
         self.save_audit_log()
-        print(f"✅ @redouane_boundra / DONE. Total Rows: {len(df_final)}")
+        print(f"✅@redouane_boundra / DONE. Total Rows: {len(df_final)}")
 
 if __name__ == "__main__":
     M1_FILE = r"D:\duka\GBPUSD.csv"
     TICK_FILE = r"D:\duka\GBPUSD1.csv"
     OUTPUT_FILE = r"D:\duka\GBPUSD_HYBRID_CLEAN.csv"
-    merger = HybridDataMerger(M1_FILE, TICK_FILE, OUTPUT_FILE)
+    
+    merger = HybridDataMerger(M1_FILE, TICK_FILE, OUTPUT_FILE, smooth_spread=True)
     merger.run()

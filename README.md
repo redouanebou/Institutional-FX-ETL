@@ -50,30 +50,31 @@ graph LR
 
 ⚡ Key Capabilities1. 
 1.Tick-Derived Volume Reconstruction
-  Challenge: Raw ticks often report Volume=0.
-  Logic: The pipeline ignores metadata and counts actual Ask updates per minute.
-  Result: Transforms "dead" columns into high-signal volatility features.
+Challenge: Raw ticks often report Volume=0.
+Logic: The pipeline ignores metadata and counts actual Ask updates per minute.
+Result: Transforms "dead" columns into high-signal volatility features.
 
 2. Hybrid Fusion Strategy
-   Prioritizes Tick Data (Precision + Spread) for the modern era.
-   Falls back to Legacy M1 only for deep history.
-   Result: A seamless 15-year dataset with institutional-grade precision.
+Prioritizes Tick Data (Precision + Spread) for the modern era.
+Falls back to Legacy M1 only for deep history.
+Result: A seamless 15-year dataset with institutional-grade precision.
 
 3. Immutable Time Grid
-   Enforces a continuous time-series (crucial for LSTMs/Transformers).
-   Identifies ~2.3M gaps and injects "Flat Candles" (is_flat=1).
-   Benefit: The model explicitly learns "Market Inactivity" vs "Missing Data".
+Enforces a continuous time-series (crucial for LSTMs/Transformers).
+Identifies ~2.3M gaps and injects "Flat Candles" (is_flat=1).
+Benefit: The model explicitly learns "Market Inactivity" vs "Missing Data".
 
 📂 Project Structure
 
 Institutional-FX-ETL/
 ├── src/
 │   ├── __init__.py
-│   └── hybrid_merger.py    
+│   └── hybrid_merger.py
 ├── data/
-│   └── ...                 
-├── requirements.txt        
-└── README.md               
+│   └── ...
+├── requirements.txt
+└── README.md
+
 
 📊 Performance Audit (GBPUSD 2010-2025)
 The engine utilizes Chunking (50M rows) and vectorized operations to handle massive datasets efficiently.

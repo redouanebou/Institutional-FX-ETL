@@ -55,7 +55,6 @@ class HybridDataMerger:
 
     def process_ticks_chunked(self):
         print(f"💎 Processing High-Res Ticks (Chunked): {self.tick_path}")
-        
         if not os.path.exists(self.tick_path):
             print("❌ Tick file not found!")
             return pd.DataFrame()
@@ -72,13 +71,25 @@ class HybridDataMerger:
 
         resampled_chunks = []
         total_rows_processed = 0
-        required_cols = ['open', 'high', 'low', 'close', 'volume', 'spread']
 
         try:
             for i, chunk in enumerate(chunk_iter):
                 chunk['datetime'] = pd.to_datetime(chunk['datetime'], utc=True)
                 chunk.set_index('datetime', inplace=True)
                 chunk.sort_index(inplace=True)
+                
+                bad_ticks = (chunk['ask'] < 0.0001) | (chunk['bid'] < 0.0001)
+                if bad_ticks.any():
+                    chunk = chunk[~bad_ticks]
+
+                mask_weekend = (chunk.index.dayofweek == 5) | \
+                               ((chunk.index.dayofweek == 4) & (chunk.index.hour >= 22)) | \
+                               ((chunk.index.dayofweek == 6) & (chunk.index.hour < 21))
+                
+                chunk = chunk[~mask_weekend]
+
+                if chunk.empty:
+                    continue
 
                 chunk['mid'] = (chunk['ask'] + chunk['bid']) / 2
                 chunk['spread'] = chunk['ask'] - chunk['bid']
@@ -97,39 +108,26 @@ class HybridDataMerger:
                     'spread': spread_mean
                 })
                 
-                if chunk_agg.empty:
-                    continue
-                if not all(c in chunk_agg.columns for c in required_cols):
-                    print(f"⚠️ Skipping malformed chunk {i+1} (missing columns)")
-                    continue
-                if chunk_agg['close'].notna().sum() == 0:
-                    print(f"⚠️ Skipping empty chunk {i+1}")
-                    continue
-
+                if chunk_agg.empty: continue
+                chunk_agg = chunk_agg.dropna(subset=['close'])
+                
                 resampled_chunks.append(chunk_agg)
                 count = len(chunk)
                 total_rows_processed += count
-                print(f"   Processed Chunk {i+1} ({count} ticks) ...")
-
+                print(f"   Processed Chunk {i+1} ({count} valid ticks) ...")
                 del chunk
                 gc.collect()
 
             print("   🔨 Consolidating Chunks...")
-            if not resampled_chunks:
-                return pd.DataFrame()
+            if not resampled_chunks: return pd.DataFrame()
 
             full_agg = pd.concat(resampled_chunks)
             full_agg.sort_index(inplace=True)
 
             final_ohlc = full_agg.groupby(level=0).agg({
-                'open': 'first',
-                'high': 'max',
-                'low': 'min',
-                'close': 'last',
-                'volume': 'sum',
-                'spread': 'mean'
+                'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last',
+                'volume': 'sum', 'spread': 'mean'
             })
-
             final_ohlc = final_ohlc.dropna(subset=['close'])
             
             print(f"   🔹 Generated {len(final_ohlc)} Superior Candles from {total_rows_processed} Ticks")
@@ -155,8 +153,7 @@ class HybridDataMerger:
              self.log_events(df[bad_oc], "fixed_structure_integrity")
              df.loc[bad_oc, 'high'] = df.loc[bad_oc, ['open', 'close', 'high']].max(axis=1)
              df.loc[bad_oc, 'low'] = df.loc[bad_oc, ['open', 'close', 'low']].min(axis=1)
-             
-             df.loc[bad_oc, 'spread'] = np.nan
+             df.loc[bad_oc, 'spread'] = np.nan 
              df['spread'] = df['spread'].ffill()
 
         amp = (df['high'] - df['low']) / df['open']
@@ -165,7 +162,7 @@ class HybridDataMerger:
         total_bad = spike_mask | jump_mask
         
         if total_bad.any():
-            print(f"   ❌ Dropping {total_bad.sum()} volatility anomalies (> {self.spike_threshold*100}%).")
+            print(f"   ❌ Dropping {total_bad.sum()} volatility anomalies.")
             self.log_events(df[total_bad], "dropped_volatility_spike")
             df = df[~total_bad]
             
@@ -176,21 +173,37 @@ class HybridDataMerger:
         df_ticks = self.process_ticks_chunked()
 
         if df_ticks.empty:
-            print("🛑 FATAL: Tick Data failed to process. Aborting merge to prevent bad data.")
+            print("🛑 FATAL: No valid tick data found.")
             sys.exit(1)
 
-        print("🔗 Merging Datasets (Overwrite M1 with Ticks)...")
+        print("🛡️ Running Consensus Check (M1 vs Ticks)...")
+        common = df_ticks.index.intersection(df_m1.index)
+        if not common.empty:
+            t_close = df_ticks.loc[common, 'close']
+            m_close = df_m1.loc[common, 'close']
+            
+            diff = (t_close - m_close).abs()
+            catastrophes = diff[diff > 0.01]
+            
+            if not catastrophes.empty:
+                print(f"   🚩 Detected {len(catastrophes)} catastrophic mismatches (> 100 pips).")
+                print("   👉 REJECTING Tick Data for these minutes. Trusting M1 Consensus.")
+                self.log_events(df_ticks.loc[catastrophes.index], "rejected_tick_catastrophe")
+                
+                df_ticks = df_ticks.drop(catastrophes.index)
+            else:
+                print("   ✅ Consensus Check Passed.")
+
+        print("🔗 Merging Datasets...")
         df_final = df_ticks.combine_first(df_m1)
         
         if not df_ticks.empty:
             median_spread = df_ticks['spread'].median()
-            print(f"   💡 Filling M1 history spread with median: {median_spread:.5f}")
             df_final['spread'] = df_final['spread'].fillna(median_spread)
         else:
             df_final['spread'] = df_final['spread'].fillna(0)
 
         if self.smooth_spread:
-            print("   〰️ Smoothing Spread...")
             df_final['spread'] = df_final['spread'].rolling(window=5, center=True, min_periods=1).median()
             
         df_final = self.validate_and_clean(df_final)
@@ -212,7 +225,6 @@ class HybridDataMerger:
             self.log_events(gap_rows, "gap_bridged_flat")
             
             df_final['close'] = df_final['close'].ffill()
-            
             df_final.loc[mask_nan, 'open'] = df_final.loc[mask_nan, 'close']
             df_final.loc[mask_nan, 'high'] = df_final.loc[mask_nan, 'close']
             df_final.loc[mask_nan, 'low']  = df_final.loc[mask_nan, 'close']
@@ -224,15 +236,11 @@ class HybridDataMerger:
         df_final = df_final.dropna(subset=['close'])
 
         print("   🔒 Final Type Casting...")
-        df_final['open'] = df_final['open'].astype('float32')
-        df_final['high'] = df_final['high'].astype('float32')
-        df_final['low'] = df_final['low'].astype('float32')
-        df_final['close'] = df_final['close'].astype('float32')
-        df_final['spread'] = df_final['spread'].astype('float32')
-        df_final['volume'] = df_final['volume'].astype('float32') 
+        cols = ['open', 'high', 'low', 'close', 'spread', 'volume']
+        for c in cols: df_final[c] = df_final[c].astype('float32')
         df_final['is_flat'] = df_final['is_flat'].astype('int8')
 
-        print(f"💾 Saving Hybrid Dataset: {self.output_path}")
+        print(f"💾 Saving Gold Standard Dataset: {self.output_path}")
         df_final.to_csv(self.output_path)
         self.save_audit_log()
         print(f"✅@redouane_boundra / DONE. Total Rows: {len(df_final)}")
@@ -240,7 +248,7 @@ class HybridDataMerger:
 if __name__ == "__main__":
     M1_FILE = r"D:\duka\GBPUSD.csv"
     TICK_FILE = r"D:\duka\GBPUSD1.csv"
-    OUTPUT_FILE = r"D:\duka\GBPUSD_HYBRID_CLEAN.csv"
+    OUTPUT_FILE = r"D:\duka\GBPUSD_GOLD_CLEAN.csv"
     
     merger = HybridDataMerger(M1_FILE, TICK_FILE, OUTPUT_FILE, smooth_spread=True)
     merger.run()

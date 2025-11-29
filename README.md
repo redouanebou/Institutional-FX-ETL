@@ -76,29 +76,30 @@ Benefit: The model explicitly learns "Market Inactivity" vs "Missing Data".
 
 📂 Project Structure
 
-Institutional-FX-ETL/
-
-├── src/
-
-│   ├── __init__.py
-
-│   └── hybrid_merger.py
-
-├── data/
-
-│   └── ...
-
-├── requirements.txt
-
+Job-Application-Automator/
+├── extension/                  # Chrome Extension Source
+│   ├── manifest.json           # Manifest V3 Config
+│   ├── background.js           # Tab & State Management
+│   ├── content.js              # DOM Scraping Logic
+│   └── popup.html              # UI Control
+├── google_scripts/             # Cloud Automation
+│   ├── DraftCreator.js         # Template Engine
+│   └── AntiSpamSender.js       # Throttling Logic
 └── README.md
 
 
 📊 Performance Audit (GBPUSD 2010-2025)
+
 The engine utilizes Chunking (50M rows) and vectorized operations to handle massive datasets efficiently.
+
 Metric,Result,Status
+
 Total Rows Generated,"8,213,517",✅ Verified
+
 Gaps Bridged,"2,383,999 (29.03%)",🛡️ Fixed
+
 Volatility Anomalies,243 dropped,🧹 Cleaned
+
 Spread Recovery,100%,💎 High Precision
 
 💻 Usage

@@ -97,7 +97,6 @@ class HybridDataMerger:
                 chunk['mid'] = (chunk['ask'] + chunk['bid']) / 2
                 chunk['spread'] = chunk['ask'] - chunk['bid']
 
-                # Resample to M1 OHLC
                 resampler = chunk.resample('1min', label='left', closed='left')
                 mid_ohlc = resampler['mid'].ohlc() 
                 spread_mean = resampler['spread'].mean()

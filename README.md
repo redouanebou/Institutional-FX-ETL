@@ -21,7 +21,7 @@
 
 In algorithmic trading, **Data Quality > Model Complexity**. 
 
-While preparing a 15-year dataset for a Deep Learning model (GBPUSD), I performed a forensic audit on standard M1 OHLC history provided by brokers. The findings were **catastrophic**:
+While preparing a +15-year dataset for a Deep Learning model (GBPUSD), I performed a forensic audit on standard M1 OHLC history provided by brokers. The findings were **catastrophic**:
 
 | Metric | Findings | Impact |
 | :--- | :--- | :--- |

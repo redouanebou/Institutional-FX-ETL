@@ -54,7 +54,7 @@ graph LR
     F -->|Output| G[clean_dataset.csv]
 ```
 
-### 📊 Forensic Data Audit: GBPUSD (2010–2025)
+### 📊 Forensic Data Audit: GBP/USD (2010–2025)
 
 * **Total Rows Generated:** 8,213,517 ✅ Verified
 * **Gaps Bridged:** 2,383,999 (29.03%) 🛡️ Fixed
